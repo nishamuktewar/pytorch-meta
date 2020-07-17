@@ -1,7 +1,7 @@
 import warnings
 
 from torchmeta.datasets import (Omniglot, MiniImagenet, TieredImagenet, CIFARFS,
-                                CUB, DoubleMNIST, TripleMNIST, Pascal5i)
+                                CUB, DoubleMNIST, TripleMNIST, Pascal5i, QuickDraw)
 from torchmeta.transforms import Categorical, ClassSplitter, Rotation, SegmentationPairTransform
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor
 
@@ -12,7 +12,8 @@ __all__ = [
     'cifar_fs',
     'cub',
     'doublemnist',
-    'triplemnist'
+    'triplemnist',
+    'quickdraw'
 ]
 
 def helper_with_default(klass, folder, shots, ways, shuffle=True,
@@ -122,6 +123,49 @@ def miniimagenet(folder, shots, ways, shuffle=True, test_shots=None,
     }
 
     return helper_with_default(MiniImagenet, folder, shots, ways,
+                               shuffle=shuffle, test_shots=test_shots,
+                               seed=seed, defaults=defaults, **kwargs)
+
+def quickdraw(folder, shots, ways, shuffle=True, test_shots=None,
+                 seed=None, **kwargs):
+    """Helper function to create a meta-dataset for the Mini-Imagenet dataset.
+
+    Parameters
+    ----------
+    folder : string
+        Root directory where the dataset folder `miniimagenet` exists.
+
+    shots : int
+        Number of (training) examples per class in each task. This corresponds
+        to `k` in `k-shot` classification.
+
+    ways : int
+        Number of classes per task. This corresponds to `N` in `N-way`
+        classification.
+
+    shuffle : bool (default: `True`)
+        Shuffle the examples when creating the tasks.
+
+    test_shots : int, optional
+        Number of test examples per class in each task. If `None`, then the
+        number of test examples is equal to the number of training examples per
+        class.
+
+    seed : int, optional
+        Random seed to be used in the meta-dataset.
+
+    kwargs
+        Additional arguments passed to the `MiniImagenet` class.
+
+    See also
+    --------
+    `datasets.MiniImagenet` : Meta-dataset for the Mini-Imagenet dataset.
+    """
+    defaults = {
+        'transform': Compose([Resize(28), ToTensor()])
+    }
+
+    return helper_with_default(QuickDraw, folder, shots, ways,
                                shuffle=shuffle, test_shots=test_shots,
                                seed=seed, defaults=defaults, **kwargs)
 

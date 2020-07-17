@@ -3,6 +3,7 @@ from torchmeta.datasets.doublemnist import DoubleMNIST
 from torchmeta.datasets.cub import CUB
 from torchmeta.datasets.cifar100 import CIFARFS, FC100
 from torchmeta.datasets.miniimagenet import MiniImagenet
+from torchmeta.datasets.quickdraw import QuickDraw
 from torchmeta.datasets.omniglot import Omniglot
 from torchmeta.datasets.tieredimagenet import TieredImagenet
 from torchmeta.datasets.tcga import TCGA
@@ -21,5 +22,6 @@ __all__ = [
     'DoubleMNIST',
     'TripleMNIST',
     'Pascal5i',
+    'QuickDraw',
     'helpers'
 ]
