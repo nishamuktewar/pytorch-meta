@@ -11,14 +11,13 @@ from torchvision.datasets.utils import download_file_from_google_drive
 
 class QuickDraw(CombinationMetaDataset):
     """
-    The Mini-Imagenet dataset, introduced in [1]. This dataset contains images 
-    of 100 different classes from the ILSVRC-12 dataset (Imagenet challenge). 
-    The meta train/validation/test splits are taken from [2] for reproducibility.
+    The QuickDraw dataset, contains images of 345 different classes. 
+    The meta train/validation/test splits are 60:20:20.
 
     Parameters
     ----------
     root : string
-        Root directory where the dataset folder `miniimagenet` exists.
+        Root directory where the dataset folder `quickdraw-dataset` exists.
 
     num_classes_per_task : int
         Number of classes per tasks. This corresponds to "N" in "N-way" 
@@ -68,17 +67,9 @@ class QuickDraw(CombinationMetaDataset):
     Notes
     -----
     The dataset is downloaded from [this repository]
-    (https://github.com/renmengye/few-shot-ssl-public/). The meta train/
-    validation/test splits are over 64/16/20 classes.
+    (https://github.com/googlecreativelab/quickdraw-dataset). The meta train/
+    validation/test splits are over 60/20/20 classes.
 
-    References
-    ----------
-    .. [1] Vinyals, O., Blundell, C., Lillicrap, T. and Wierstra, D. (2016). 
-           Matching Networks for One Shot Learning. In Advances in Neural 
-           Information Processing Systems (pp. 3630-3638) (https://arxiv.org/abs/1606.04080)
-
-    .. [2] Ravi, S. and Larochelle, H. (2016). Optimization as a Model for 
-           Few-Shot Learning. (https://openreview.net/forum?id=rJY0-Kcll)
     """
     def __init__(self, root, num_classes_per_task=None, meta_train=False,
                  meta_val=False, meta_test=False, meta_split=None,
@@ -88,19 +79,16 @@ class QuickDraw(CombinationMetaDataset):
             meta_val=meta_val, meta_test=meta_test, meta_split=meta_split,
             transform=transform, class_augmentations=class_augmentations,
             download=download)
+        print("inside quickdraw init")
+        print(len(dataset))
         super(QuickDraw, self).__init__(dataset, num_classes_per_task,
             target_transform=target_transform, dataset_transform=dataset_transform)
 
 
 class QuickDrawClassDataset(ClassDataset):
     folder = 'quickdraw-dataset'
-    folder_meta = 'quickdraw_meta'
-    # Google Drive ID from https://github.com/renmengye/few-shot-ssl-public
-    gdrive_id = '16V_ZlkW4SsnNDtnGmaBRq2OoPmUOc5mY'
-    gz_filename = 'mini-imagenet.tar.gz'
-    gz_md5 = 'b38f1eb4251fb9459ecc8e7febf9b2eb'
-    pkl_filename = 'mini-imagenet-cache-{0}.pkl'
-
+    folder_meta = 'quickdraw-dataset-meta' # whole
+    #folder_meta = 'quickdraw-sample-meta' # sample
     filename = '{0}_data.hdf5'
     filename_labels = '{0}_labels.json'
     train_val_test_ratio = [60, 20, 20]
@@ -130,12 +118,12 @@ class QuickDrawClassDataset(ClassDataset):
             raise RuntimeError('QuickDraw integrity check failed')
         self._num_classes = len(self.labels)
 
+
     def __getitem__(self, index):
         class_name = self.labels[index % self.num_classes]
         data = self.data[class_name]
         transform = self.get_transform(index, self.transform)
         target_transform = self.get_target_transform(index)
-
         return QuickDrawDataset(index, data, class_name,
             transform=transform, target_transform=target_transform)
 
@@ -154,7 +142,7 @@ class QuickDrawClassDataset(ClassDataset):
     def labels(self):
         if self._labels is None:
             with open(self.split_filename_labels, 'r') as f:
-                self._labels = json.load(f)
+                self._labels = json.load(f
         return self._labels
 
     def _check_integrity(self):
@@ -173,7 +161,7 @@ class QuickDrawClassDataset(ClassDataset):
             return
         
         '''
-        # this doesn't work yet
+        # this doesn't work from the program yet
         cmd = "gsutil -m cp -r gs://quickdraw_dataset/full/numpy_bitmap/*.npy root"
         '''
         print("in download ", self.root)
@@ -185,16 +173,14 @@ class QuickDrawClassDataset(ClassDataset):
         filenames = os.listdir(os.path.join(self.root, self.folder))
         classes = sorted(filenames)
         print(f'Total classes: {len(classes)}')
-        classes = classes[:10]
+        #classes = classes[:10]
         print(classes)
         num_class = len(classes)
+        '''
+        Add logic to randomly select classes based on the train:val:test ratio, but that's for later
+        '''
         num_train, num_val, num_test = [int(float(ratio)/np.sum(self.train_val_test_ratio)*num_class)
                                         for ratio in self.train_val_test_ratio]
-        #train_classes = classes[:num_train]
-        #val_classes = classes[num_train:num_train+num_val]
-        #test_classes = classes[num_train+num_val:]
-        #classes = '{0}_classes'
-        
         for split in ['train', 'val', 'test']:
             
             filename = os.path.join(self.root, self.filename.format(split))
@@ -213,7 +199,7 @@ class QuickDrawClassDataset(ClassDataset):
                 else:
                     labels = classes[num_train+num_val:]
                 json.dump(labels, f)
-            print("labels: ", labels)    
+            
             filename = os.path.join(self.root, 
                                     self.folder_meta,
                                     self.filename.format(split))                
@@ -228,7 +214,6 @@ class QuickDrawClassDataset(ClassDataset):
                     data = data.reshape((data.shape[0], 28, 28))
                     #print(data.shape)               
                     group.create_dataset(classname, data=data)
-            f.close()
 
 class QuickDrawDataset(Dataset):
     def __init__(self, index, data, class_name,

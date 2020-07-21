@@ -295,11 +295,15 @@ class CombinationMetaDataset(MetaDataset):
             transform.num_classes = self.num_classes_per_task
         return deepcopy(transform)
 
+    '''
+    The number of tasks in the dataset is C(n, k), it is n choose k
+    n = num_classes, k = num_classes_per_task
+    Hence for smaller num_classes, that is, num_classes <= 10 depending on k this could result in len(dataset) = 0
+    '''
     def __len__(self):
         num_classes, length = len(self.dataset), 1
         for i in range(1, self.num_classes_per_task + 1):
             length *= (num_classes - i + 1) // i
-
         if length > sys.maxsize:
             warnings.warn('The number of possible tasks in {0} is '
                 'combinatorially large (equal to C({1}, {2})), and exceeds '

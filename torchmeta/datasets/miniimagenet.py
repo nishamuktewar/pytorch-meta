@@ -87,6 +87,9 @@ class MiniImagenet(CombinationMetaDataset):
             meta_val=meta_val, meta_test=meta_test, meta_split=meta_split,
             transform=transform, class_augmentations=class_augmentations,
             download=download)
+        print("inside miniimagenet init")
+        print(len(dataset))
+
         super(MiniImagenet, self).__init__(dataset, num_classes_per_task,
             target_transform=target_transform, dataset_transform=dataset_transform)
 

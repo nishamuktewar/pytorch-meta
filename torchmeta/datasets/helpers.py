@@ -128,12 +128,12 @@ def miniimagenet(folder, shots, ways, shuffle=True, test_shots=None,
 
 def quickdraw(folder, shots, ways, shuffle=True, test_shots=None,
                  seed=None, **kwargs):
-    """Helper function to create a meta-dataset for the Mini-Imagenet dataset.
+    """Helper function to create a meta-dataset for the QuickDraw dataset.
 
     Parameters
     ----------
     folder : string
-        Root directory where the dataset folder `miniimagenet` exists.
+        Root directory where the dataset folder `quickdraw-dataset` exists.
 
     shots : int
         Number of (training) examples per class in each task. This corresponds
@@ -155,11 +155,11 @@ def quickdraw(folder, shots, ways, shuffle=True, test_shots=None,
         Random seed to be used in the meta-dataset.
 
     kwargs
-        Additional arguments passed to the `MiniImagenet` class.
+        Additional arguments passed to the `QuickDraw` class.
 
     See also
     --------
-    `datasets.MiniImagenet` : Meta-dataset for the Mini-Imagenet dataset.
+    `datasets.QuickDraw` : Meta-dataset for the QuickDraw dataset.
     """
     defaults = {
         'transform': Compose([Resize(28), ToTensor()])
