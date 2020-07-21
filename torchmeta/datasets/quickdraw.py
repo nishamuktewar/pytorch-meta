@@ -142,7 +142,7 @@ class QuickDrawClassDataset(ClassDataset):
     def labels(self):
         if self._labels is None:
             with open(self.split_filename_labels, 'r') as f:
-                self._labels = json.load(f
+                self._labels = json.load(f)
         return self._labels
 
     def _check_integrity(self):
