@@ -94,7 +94,7 @@ class Sinusoid(MetaDataset):
 class SinusoidTask(Task):
     def __init__(self, index, amplitude, phase, input_range, noise_std,
                  num_samples, transform=None, target_transform=None,
-                 np_random=None):
+                 np_random=123):
         super(SinusoidTask, self).__init__(index, None) # Regression task
         self.amplitude = amplitude
         self.phase = phase
@@ -106,6 +106,7 @@ class SinusoidTask(Task):
         self.target_transform = target_transform
 
         if np_random is None:
+            print(np_random)
             np_random = np.random.RandomState(None)
 
         self._inputs = np_random.uniform(input_range[0], input_range[1],

@@ -63,6 +63,13 @@ class QuickDraw(CombinationMetaDataset):
         If `True`, downloads the pickle files and processes the dataset in the root 
         directory (under the `quickdraw-dataset` folder). If the dataset is already 
         available, this does not download/process the dataset again.
+        
+    random_seed : int (default: 123)
+        Sets random seed to select train, val and test classes
+        
+    num_training_samples : int (default: 100)
+        Down samples the QuickDraw dataset to include approx. user specified number of 
+        samples for each class
 
     Notes
     -----
@@ -74,38 +81,38 @@ class QuickDraw(CombinationMetaDataset):
     def __init__(self, root, num_classes_per_task=None, meta_train=False,
                  meta_val=False, meta_test=False, meta_split=None,
                  transform=None, target_transform=None, dataset_transform=None,
-                 class_augmentations=None, download=False):
+                 class_augmentations=None, download=False, random_seed=123, num_training_samples=100):
         dataset = QuickDrawClassDataset(root, meta_train=meta_train,
             meta_val=meta_val, meta_test=meta_test, meta_split=meta_split,
             transform=transform, class_augmentations=class_augmentations,
-            download=download)
-        print("inside quickdraw init")
-        print(len(dataset))
+            download=download, random_seed=random_seed, num_training_samples=num_training_samples)
         super(QuickDraw, self).__init__(dataset, num_classes_per_task,
             target_transform=target_transform, dataset_transform=dataset_transform)
 
 
 class QuickDrawClassDataset(ClassDataset):
     folder = 'quickdraw-dataset'
-    folder_meta = 'quickdraw-dataset-meta' # whole
+    #folder_meta = 'quickdraw-dataset-meta' # whole
     #folder_meta = 'quickdraw-sample-meta' # sample
+    folder_meta = 'quickdraw-{0}-meta' # 100 or 20 samples, with random class split
     filename = '{0}_data.hdf5'
     filename_labels = '{0}_labels.json'
     train_val_test_ratio = [60, 20, 20]
 
     def __init__(self, root, meta_train=False, meta_val=False, meta_test=False,
                  meta_split=None, transform=None, class_augmentations=None,
-                 download=False):
+                 download=False, random_seed=123, num_training_samples=100):
         super(QuickDrawClassDataset, self).__init__(meta_train=meta_train,
             meta_val=meta_val, meta_test=meta_test, meta_split=meta_split,
             class_augmentations=class_augmentations)
-        
+        self.random_seed = random_seed
+        self.num_training_samples=num_training_samples
         self.root = os.path.join(os.path.expanduser(root)) #, self.folder
         self.transform = transform
-
-        self.split_filename = os.path.join(self.root, self.folder_meta, 
+    
+        self.split_filename = os.path.join(self.root, self.folder_meta.format(self.num_training_samples), 
             self.filename.format(self.meta_split))
-        self.split_filename_labels = os.path.join(self.root, self.folder_meta, 
+        self.split_filename_labels = os.path.join(self.root, self.folder_meta.format(self.num_training_samples), 
             self.filename_labels.format(self.meta_split))
 
         self._data = None
@@ -156,29 +163,30 @@ class QuickDrawClassDataset(ClassDataset):
             self._data = None
 
     def download(self):
-
         if self._check_integrity():
             return
         
-        '''
-        # this doesn't work from the program yet
-        cmd = "gsutil -m cp -r gs://quickdraw_dataset/full/numpy_bitmap/*.npy root"
-        '''
-        print("in download ", self.root)
-        foldername = os.path.join(self.root, self.folder_meta)
+        if not os.path.exists(os.path.join(self.root, self.folder)): 
+            print("Downloading data in ", self.root)
+            cmd = "gsutil -m cp -r gs://quickdraw_dataset/full/numpy_bitmap/*.npy {0}".format(os.path.join(self.root, self.folder))
+            os.system(cmd)
+
+        foldername = os.path.join(self.root, self.folder_meta.format(self.num_training_samples))
         if os.path.exists(foldername):
             return
-
-        os.mkdir(foldername)
+        
+        os.mkdir(foldername)                
         filenames = os.listdir(os.path.join(self.root, self.folder))
         classes = sorted(filenames)
+        # remove "*.npy" from label names
+        classes = [sub[: -4] for sub in classes]
+        # shuffle classes so that the train, val and test classes are selected at random
+        rs = np.random.RandomState(self.random_seed)
+        rs.shuffle(classes)
         print(f'Total classes: {len(classes)}')
-        #classes = classes[:10]
         print(classes)
         num_class = len(classes)
-        '''
-        Add logic to randomly select classes based on the train:val:test ratio, but that's for later
-        '''
+
         num_train, num_val, num_test = [int(float(ratio)/np.sum(self.train_val_test_ratio)*num_class)
                                         for ratio in self.train_val_test_ratio]
         for split in ['train', 'val', 'test']:
@@ -188,12 +196,12 @@ class QuickDrawClassDataset(ClassDataset):
                 continue
             
             labels_filename = os.path.join(self.root,
-                                           self.folder_meta, 
+                                           self.folder_meta.format(self.num_training_samples), 
                                            self.filename_labels.format(split))
             labels = []
             with open(labels_filename, 'w') as f:
                 if split == 'train':
-                    labels = classes[:num_train]     #classes.format(split)
+                    labels = classes[:num_train]     
                 elif split == 'val':
                     labels = classes[num_train:num_train+num_val]
                 else:
@@ -201,7 +209,7 @@ class QuickDrawClassDataset(ClassDataset):
                 json.dump(labels, f)
             
             filename = os.path.join(self.root, 
-                                    self.folder_meta,
+                                    self.folder_meta.format(self.num_training_samples),
                                     self.filename.format(split))                
             with h5py.File(filename, 'w') as f:
                 group = f.create_group('datasets')
@@ -209,11 +217,20 @@ class QuickDrawClassDataset(ClassDataset):
                  
                     data = np.load(os.path.join(self.root, 
                                                 self.folder, 
-                                                classname)) #+'.npy'
-                    #print(data.shape)
-                    data = data.reshape((data.shape[0], 28, 28))
+                                                classname+'.npy')) #+'.npy'
+                    print(data.shape)
+                    # This is not exact but creates approx 100 or 20 samples
+                    sample = data[rs.choice(data.shape[0], self.num_training_samples, replace=False)]
+                    '''
+                    mask = rs.choice([False, True], len(data), 
+                                     p=[1.0-(self.num_training_samples/len(data)),
+                                        self.num_training_samples/len(data)])
+                    data = data[mask]
+                    '''
+                    print('number of samples in {} after down-sampling: {}'.format(classname, sample.shape[0]))
+                    sample = sample.reshape((sample.shape[0], 28, 28))
                     #print(data.shape)               
-                    group.create_dataset(classname, data=data)
+                    group.create_dataset(classname, data=sample)
 
 class QuickDrawDataset(Dataset):
     def __init__(self, index, data, class_name,
