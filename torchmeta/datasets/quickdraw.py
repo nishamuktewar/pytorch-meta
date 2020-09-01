@@ -3,21 +3,21 @@ import pickle
 from PIL import Image
 import h5py
 import json
+import numpy as np
 
 from torchmeta.utils.data import Dataset, ClassDataset, CombinationMetaDataset
 from torchvision.datasets.utils import download_file_from_google_drive
 
 
-class MiniImagenet(CombinationMetaDataset):
+class QuickDraw(CombinationMetaDataset):
     """
-    The Mini-Imagenet dataset, introduced in [1]. This dataset contains images 
-    of 100 different classes from the ILSVRC-12 dataset (Imagenet challenge). 
-    The meta train/validation/test splits are taken from [2] for reproducibility.
+    The QuickDraw dataset, contains images of 345 different classes. 
+    The meta train/validation/test splits are 60:20:20.
 
     Parameters
     ----------
     root : string
-        Root directory where the dataset folder `miniimagenet` exists.
+        Root directory where the dataset folder `quickdraw-dataset` exists.
 
     num_classes_per_task : int
         Number of classes per tasks. This corresponds to "N" in "N-way" 
@@ -61,63 +61,58 @@ class MiniImagenet(CombinationMetaDataset):
 
     download : bool (default: `False`)
         If `True`, downloads the pickle files and processes the dataset in the root 
-        directory (under the `miniimagenet` folder). If the dataset is already 
+        directory (under the `quickdraw-dataset` folder). If the dataset is already 
         available, this does not download/process the dataset again.
+        
+    random_seed : int (default: 123)
+        Sets random seed to select train, val and test classes
+        
+    num_training_samples : int (default: 100)
+        Down samples the QuickDraw dataset to include approx. user specified number of 
+        samples for each class
 
     Notes
     -----
     The dataset is downloaded from [this repository]
-    (https://github.com/renmengye/few-shot-ssl-public/). The meta train/
-    validation/test splits are over 64/16/20 classes.
+    (https://github.com/googlecreativelab/quickdraw-dataset). The meta train/
+    validation/test splits are over 60/20/20 classes.
 
-    References
-    ----------
-    .. [1] Vinyals, O., Blundell, C., Lillicrap, T. and Wierstra, D. (2016). 
-           Matching Networks for One Shot Learning. In Advances in Neural 
-           Information Processing Systems (pp. 3630-3638) (https://arxiv.org/abs/1606.04080)
-
-    .. [2] Ravi, S. and Larochelle, H. (2016). Optimization as a Model for 
-           Few-Shot Learning. (https://openreview.net/forum?id=rJY0-Kcll)
     """
     def __init__(self, root, num_classes_per_task=None, meta_train=False,
                  meta_val=False, meta_test=False, meta_split=None,
                  transform=None, target_transform=None, dataset_transform=None,
-                 class_augmentations=None, download=False):
-        dataset = MiniImagenetClassDataset(root, meta_train=meta_train,
+                 class_augmentations=None, download=False, random_seed=123, num_training_samples=100):
+        dataset = QuickDrawClassDataset(root, meta_train=meta_train,
             meta_val=meta_val, meta_test=meta_test, meta_split=meta_split,
             transform=transform, class_augmentations=class_augmentations,
-            download=download)
-        print("inside miniimagenet init")
-        print(len(dataset))
-
-        super(MiniImagenet, self).__init__(dataset, num_classes_per_task,
+            download=download, random_seed=random_seed, num_training_samples=num_training_samples)
+        super(QuickDraw, self).__init__(dataset, num_classes_per_task,
             target_transform=target_transform, dataset_transform=dataset_transform)
 
 
-class MiniImagenetClassDataset(ClassDataset):
-    folder = 'miniimagenet'
-    # Google Drive ID from https://github.com/renmengye/few-shot-ssl-public
-    gdrive_id = '16V_ZlkW4SsnNDtnGmaBRq2OoPmUOc5mY'
-    gz_filename = 'mini-imagenet.tar.gz'
-    gz_md5 = 'b38f1eb4251fb9459ecc8e7febf9b2eb'
-    pkl_filename = 'mini-imagenet-cache-{0}.pkl'
-
+class QuickDrawClassDataset(ClassDataset):
+    folder = 'quickdraw-dataset'
+    #folder_meta = 'quickdraw-dataset-meta' # whole
+    #folder_meta = 'quickdraw-sample-meta' # sample
+    folder_meta = 'quickdraw-{0}-meta' # 100 or 20 samples, with random class split
     filename = '{0}_data.hdf5'
     filename_labels = '{0}_labels.json'
+    train_val_test_ratio = [60, 20, 20]
 
     def __init__(self, root, meta_train=False, meta_val=False, meta_test=False,
                  meta_split=None, transform=None, class_augmentations=None,
-                 download=False):
-        super(MiniImagenetClassDataset, self).__init__(meta_train=meta_train,
+                 download=False, random_seed=123, num_training_samples=100):
+        super(QuickDrawClassDataset, self).__init__(meta_train=meta_train,
             meta_val=meta_val, meta_test=meta_test, meta_split=meta_split,
             class_augmentations=class_augmentations)
-        
-        self.root = os.path.join(os.path.expanduser(root), self.folder)
+        self.random_seed = random_seed
+        self.num_training_samples=num_training_samples
+        self.root = os.path.join(os.path.expanduser(root)) #, self.folder
         self.transform = transform
-
-        self.split_filename = os.path.join(self.root,
+    
+        self.split_filename = os.path.join(self.root, self.folder_meta.format(self.num_training_samples), 
             self.filename.format(self.meta_split))
-        self.split_filename_labels = os.path.join(self.root,
+        self.split_filename_labels = os.path.join(self.root, self.folder_meta.format(self.num_training_samples), 
             self.filename_labels.format(self.meta_split))
 
         self._data = None
@@ -127,16 +122,16 @@ class MiniImagenetClassDataset(ClassDataset):
             self.download()
 
         if not self._check_integrity():
-            raise RuntimeError('MiniImagenet integrity check failed')
+            raise RuntimeError('QuickDraw integrity check failed')
         self._num_classes = len(self.labels)
+
 
     def __getitem__(self, index):
         class_name = self.labels[index % self.num_classes]
         data = self.data[class_name]
         transform = self.get_transform(index, self.transform)
         target_transform = self.get_target_transform(index)
-
-        return MiniImagenetDataset(index, data, class_name,
+        return QuickDrawDataset(index, data, class_name,
             transform=transform, target_transform=target_transform)
 
     @property
@@ -168,48 +163,79 @@ class MiniImagenetClassDataset(ClassDataset):
             self._data = None
 
     def download(self):
-        import tarfile
-
         if self._check_integrity():
             return
+        
+        if not os.path.exists(os.path.join(self.root, self.folder)): 
+            print("Downloading data in ", self.root)
+            cmd = "gsutil -m cp -r gs://quickdraw_dataset/full/numpy_bitmap/*.npy {0}".format(os.path.join(self.root, self.folder))
+            os.system(cmd)
 
-        download_file_from_google_drive(self.gdrive_id, self.root,
-            self.gz_filename, md5=self.gz_md5)
+        foldername = os.path.join(self.root, self.folder_meta.format(self.num_training_samples))
+        if os.path.exists(foldername):
+            return
+        
+        os.mkdir(foldername)                
+        filenames = os.listdir(os.path.join(self.root, self.folder))
+        classes = sorted(filenames)
+        # remove "*.npy" from label names
+        classes = [sub[: -4] for sub in classes]
+        # shuffle classes so that the train, val and test classes are selected at random
+        rs = np.random.RandomState(self.random_seed)
+        rs.shuffle(classes)
+        print(f'Total classes: {len(classes)}')
+        print(classes)
+        num_class = len(classes)
 
-        filename = os.path.join(self.root, self.gz_filename)
-        with tarfile.open(filename, 'r') as f:
-            f.extractall(self.root)
-
+        num_train, num_val, num_test = [int(float(ratio)/np.sum(self.train_val_test_ratio)*num_class)
+                                        for ratio in self.train_val_test_ratio]
         for split in ['train', 'val', 'test']:
+            
             filename = os.path.join(self.root, self.filename.format(split))
             if os.path.isfile(filename):
                 continue
-
-            pkl_filename = os.path.join(self.root, self.pkl_filename.format(split))
-            if not os.path.isfile(pkl_filename):
-                raise IOError()
-            with open(pkl_filename, 'rb') as f:
-                data = pickle.load(f)
-                images, classes = data['image_data'], data['class_dict']
-
+            
+            labels_filename = os.path.join(self.root,
+                                           self.folder_meta.format(self.num_training_samples), 
+                                           self.filename_labels.format(split))
+            labels = []
+            with open(labels_filename, 'w') as f:
+                if split == 'train':
+                    labels = classes[:num_train]     
+                elif split == 'val':
+                    labels = classes[num_train:num_train+num_val]
+                else:
+                    labels = classes[num_train+num_val:]
+                json.dump(labels, f)
+            
+            filename = os.path.join(self.root, 
+                                    self.folder_meta.format(self.num_training_samples),
+                                    self.filename.format(split))                
             with h5py.File(filename, 'w') as f:
                 group = f.create_group('datasets')
-                for name, indices in classes.items():
-                    group.create_dataset(name, data=images[indices])
+                for classname in labels:
+                 
+                    data = np.load(os.path.join(self.root, 
+                                                self.folder, 
+                                                classname+'.npy')) #+'.npy'
+                    print(data.shape)
+                    # This is not exact but creates approx 100 or 20 samples
+                    sample = data[rs.choice(data.shape[0], self.num_training_samples, replace=False)]
+                    '''
+                    mask = rs.choice([False, True], len(data), 
+                                     p=[1.0-(self.num_training_samples/len(data)),
+                                        self.num_training_samples/len(data)])
+                    data = data[mask]
+                    '''
+                    print('number of samples in {} after down-sampling: {}'.format(classname, sample.shape[0]))
+                    sample = sample.reshape((sample.shape[0], 28, 28))
+                    #print(data.shape)               
+                    group.create_dataset(classname, data=sample)
 
-            labels_filename = os.path.join(self.root, self.filename_labels.format(split))
-            with open(labels_filename, 'w') as f:
-                labels = sorted(list(classes.keys()))
-                json.dump(labels, f)
-
-            if os.path.isfile(pkl_filename):
-                os.remove(pkl_filename)
-
-
-class MiniImagenetDataset(Dataset):
+class QuickDrawDataset(Dataset):
     def __init__(self, index, data, class_name,
                  transform=None, target_transform=None):
-        super(MiniImagenetDataset, self).__init__(index, transform=transform,
+        super(QuickDrawDataset, self).__init__(index, transform=transform,
                                                   target_transform=target_transform)
         self.data = data
         self.class_name = class_name
@@ -218,7 +244,7 @@ class MiniImagenetDataset(Dataset):
         return self.data.shape[0]
 
     def __getitem__(self, index):
-        image = Image.fromarray(self.data[index])
+        image = Image.fromarray(self.data[index], mode='L')
         target = self.class_name
 
         if self.transform is not None:
